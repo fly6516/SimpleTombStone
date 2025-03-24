@@ -65,11 +65,17 @@ public class SimpleTombstone implements ModInitializer {
         while (world.isAir(deathPos.down())) {
             deathPos = deathPos.down();
         }
+        deathPos = deathPos.down();
 
-        if (!world.getBlockState(deathPos).isSolid()) {
-            LOGGER.warn("[SimpleTombstone] 位置 {} 处为液体，替换为玻璃。", deathPos.toShortString());
+        // 只有下方是液体时才生成玻璃
+        if (world.getBlockState(deathPos.down()).getBlock() instanceof FluidBlock) {
+            LOGGER.warn("[SimpleTombstone] 位置 {} 处下方为液体，替换为玻璃。", deathPos.toShortString());
+            world.setBlockState(deathPos, Blocks.GLASS.getDefaultState());
+        } else if (!world.getBlockState(deathPos).isFullCube(world, deathPos)) {
+            LOGGER.warn("[SimpleTombstone] 位置 {} 处非实体块，替换为玻璃。", deathPos.toShortString());
             world.setBlockState(deathPos, Blocks.GLASS.getDefaultState());
         }
+
 
         BlockPos tombstonePos = deathPos.up();
         List<ItemStack> items = new ArrayList<>();
@@ -104,12 +110,16 @@ public class SimpleTombstone implements ModInitializer {
                 playerPos.getX() + 4, playerPos.getY() + 4, playerPos.getZ() + 4
         )) {
             PlayerTombstoneData data = TOMBSTONE_CHESTS.get(pos);
-            if (data != null && data.getPlayerId().equals(player.getUuid())) {
+            if (data != null && data.playerId().equals(player.getUuid())) {
                 Block block = world.getBlockState(pos).getBlock();
                 if (block instanceof FlowerPotBlock) {
                     LOGGER.info("[SimpleTombstone] 玩家 {} 靠近墓碑，恢复物品。", player.getName().getString());
-                    for (ItemStack stack : data.getItems()) {
+                    for (ItemStack stack : data.items()) {
                         player.getInventory().offerOrDrop(stack);
+                    }
+                    if (world.getBlockState(pos.down()).getBlock() == Blocks.GLASS) {
+                        world.removeBlock(pos.down(), false);
+                        LOGGER.info("[SimpleTombstone] 删除墓碑的玻璃块。");
                     }
                     world.removeBlock(pos, false);
                     TOMBSTONE_CHESTS.remove(pos);
@@ -121,16 +131,6 @@ public class SimpleTombstone implements ModInitializer {
         }
     }
 
-    private static class PlayerTombstoneData {
-        private final UUID playerId;
-        private final List<ItemStack> items;
-
-        public PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
-            this.playerId = playerId;
-            this.items = items;
-        }
-
-        public UUID getPlayerId() { return playerId; }
-        public List<ItemStack> getItems() { return items; }
+    private record PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
     }
 }
