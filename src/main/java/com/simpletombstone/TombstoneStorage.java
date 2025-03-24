@@ -69,7 +69,7 @@ public class TombstoneStorage extends PersistentState {
         nbt.put(KEY_TOMBSTONES, tombstoneList);
 
         // 打印完整的NBT数据以检查格式
-        LOGGER.info("[TombstoneStorage] 写入的 NBT 数据: {}", nbt.toString());
+        LOGGER.info("[TombstoneStorage] 写入的 NBT 数据: {}", nbt);
         LOGGER.info("[TombstoneStorage] NBT 数据写入成功.");
         return nbt;
     }

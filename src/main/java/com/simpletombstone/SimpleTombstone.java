@@ -1,12 +1,14 @@
 package com.simpletombstone;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.api.EnvType;
 import net.minecraft.block.*;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.ActionResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.slf4j.Logger;
@@ -58,6 +60,42 @@ public class SimpleTombstone implements ModInitializer {
                     }
                 }
             });
+
+            // 注册花盆右键事件监听
+            UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+                if (world.isClient()) {
+                    return ActionResult.PASS; // 只在服务器端处理
+                }
+
+                BlockPos pos = hitResult.getBlockPos();
+                BlockState state = world.getBlockState(pos);
+
+                // 检查玩家是否点击了花盆
+                if (state.getBlock() == Blocks.FLOWER_POT) {
+                    TombstoneStorage storage = TombstoneStorage.load((ServerWorld) world);
+                    // 检查是否有墓碑数据
+                    for (Map.Entry<BlockPos, PlayerTombstoneData> entry : storage.getTombstoneData().entrySet()) {
+                        // 如果点击的花盆与墓碑位置相匹配
+                        if (entry.getKey().equals(pos)) {
+                            PlayerTombstoneData data = entry.getValue();
+                            // 将物品恢复给玩家
+                            for (ItemStack stack : data.items()) {
+                                player.getInventory().offerOrDrop(stack);
+                            }
+
+                            // 删除墓碑和数据
+                            world.removeBlock(pos, false);
+                            storage.removeTombstone(pos);
+                            player.sendMessage(Text.of("你的物品已经从墓碑中恢复！"), false);
+                            LOGGER.info("[SimpleTombstone] 玩家 {} 恢复了物品并删除了墓碑。", player.getName().getString());
+                            break;
+                        }
+                    }
+                }
+                return ActionResult.PASS;
+            });
+
+
 
             LOGGER.info("[SimpleTombstone] 服务器端初始化完成");
         }
@@ -141,7 +179,18 @@ public class SimpleTombstone implements ModInitializer {
             }
         }
     }
+    
 
-    record PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
-    }
+    // 在SimpleTombstone.java中添加
+        public record PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
+            public PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
+                this.playerId = playerId;
+                this.items = new ArrayList<>(items);
+            }
+
+            @Override
+            public List<ItemStack> items() {
+                return Collections.unmodifiableList(items);
+            }
+        }
 }
