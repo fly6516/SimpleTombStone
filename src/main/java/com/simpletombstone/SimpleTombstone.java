@@ -179,9 +179,8 @@ public class SimpleTombstone implements ModInitializer {
             }
         }
     }
-    
 
-    // 在SimpleTombstone.java中添加
+
         public record PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
             public PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
                 this.playerId = playerId;
