@@ -20,7 +20,7 @@ public class TombstoneStorage extends PersistentState {
     private final Map<BlockPos, SimpleTombstone.PlayerTombstoneData> tombstoneData = new HashMap<>();
 
     public static TombstoneStorage load(ServerWorld world) {
-        LOGGER.info("[TombstoneStorage] 加载墓碑数据...");
+        //LOGGER.info("[TombstoneStorage] 加载墓碑数据...");
         TombstoneStorage storage = world.getPersistentStateManager().getOrCreate(
                 new PersistentState.Type<>(
                         TombstoneStorage::new,  // Supplier
@@ -29,7 +29,7 @@ public class TombstoneStorage extends PersistentState {
                 ),
                 "simple_tombstone"                 // 存储名称
         );
-        LOGGER.info("[TombstoneStorage] 成功加载墓碑数据.");
+        //LOGGER.info("[TombstoneStorage] 成功加载墓碑数据.");
         return storage;
     }
 

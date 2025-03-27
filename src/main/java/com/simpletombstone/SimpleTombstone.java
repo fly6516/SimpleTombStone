@@ -2,8 +2,8 @@ package com.simpletombstone;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.api.EnvType;
+//import net.fabricmc.loader.api.FabricLoader;
+//import net.fabricmc.api.EnvType;
 import net.minecraft.block.*;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -30,7 +30,7 @@ public class SimpleTombstone implements ModInitializer {
     public void onInitialize() {
         if (
                 true
-                //FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER
+            //FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER
         ) {
             LOGGER.info("[SimpleTombstone] 服务器端初始化中...");
 
@@ -184,15 +184,15 @@ public class SimpleTombstone implements ModInitializer {
     }
 
 
-        public record PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
-            public PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
-                this.playerId = playerId;
-                this.items = new ArrayList<>(items);
-            }
-
-            @Override
-            public List<ItemStack> items() {
-                return Collections.unmodifiableList(items);
-            }
+    public record PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
+        public PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
+            this.playerId = playerId;
+            this.items = new ArrayList<>(items);
         }
+
+        @Override
+        public List<ItemStack> items() {
+            return Collections.unmodifiableList(items);
+        }
+    }
 }
