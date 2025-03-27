@@ -28,7 +28,10 @@ public class SimpleTombstone implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER) {
+        if (
+                true
+                //FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER
+        ) {
             LOGGER.info("[SimpleTombstone] 服务器端初始化中...");
 
             // 监听玩家死亡事件
