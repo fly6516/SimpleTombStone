@@ -38,6 +38,7 @@ public class SimpleTombstone implements ModInitializer {
             ServerLivingEntityEvents.ALLOW_DEATH.register((entity, damageSource, damageAmount) -> {
                 if (entity instanceof ServerPlayerEntity player) {
                     LOGGER.info("[SimpleTombstone] 检测到玩家 {} 死亡，创建墓碑...", player.getName().getString());
+                    RESURRECTED_PLAYERS.remove(player.getUuid());
                     createTombstoneForMixin(player);
                     DEAD_PLAYERS.add(player.getUuid());
                     return false; // 阻止默认死亡逻辑，防止玩家直接死亡
