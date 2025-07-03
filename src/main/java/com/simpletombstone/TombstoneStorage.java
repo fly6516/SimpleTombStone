@@ -28,7 +28,7 @@ public class TombstoneStorage extends PersistentState {
 
     public static TombstoneStorage load(ServerWorld world) {
         //LOGGER.info("[TombstoneStorage] 加载墓碑数据...");
-        TombstoneStorage storage = world.getPersistentStateManager().getOrCreate(
+        return world.getPersistentStateManager().getOrCreate(
                 new PersistentState.Type<>(
                         TombstoneStorage::new,  // Supplier
                         TombstoneStorage::fromNbt,           // NBT加载函数
@@ -37,7 +37,6 @@ public class TombstoneStorage extends PersistentState {
                 "simple_tombstone"                 // 存储名称
         );
         //LOGGER.info("[TombstoneStorage] 成功加载墓碑数据.");
-        return storage;
     }
 
     public void addTombstone(BlockPos pos, SimpleTombstone.PlayerTombstoneData data) {
