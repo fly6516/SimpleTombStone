@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 //import net.fabricmc.loader.api.FabricLoader;
 //import net.fabricmc.api.EnvType;
 import net.minecraft.block.*;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -117,11 +118,25 @@ public class SimpleTombstone implements ModInitializer {
     public static void createTombstoneForMixin(ServerPlayerEntity player) {
         BlockPos deathPos = player.getBlockPos();
         World world = player.getWorld();
+        RegistryKey<World> dimension = player.getWorld().getRegistryKey();
 
-        while (world.isAir(deathPos.down())) {
+
+        while (deathPos.getY()<=0) {
+            deathPos = deathPos.up();
+        }
+        deathPos = deathPos.up();
+
+        while (world.isAir(deathPos.down())&&deathPos.getY()>0) {
             deathPos = deathPos.down();
         }
         deathPos = deathPos.down();
+
+        if( dimension == World.END ){
+            deathPos = deathPos.add(0,60,0);
+            while(!world.isAir(deathPos.down())){
+                deathPos = deathPos.up();
+            }
+        }
 
         // 只有下方是液体时才生成玻璃
         if (world.getBlockState(deathPos.down()).getBlock() instanceof FluidBlock) {
