@@ -28,6 +28,9 @@ public class SimpleTombstone implements ModInitializer {
     private static final Map<BlockPos, PlayerTombstoneData> TOMBSTONE_CHESTS = new HashMap<>();
     private static final Set<UUID> DEAD_PLAYERS = new HashSet<>();
     private static final Set<UUID> RESURRECTED_PLAYERS = new HashSet<>();
+    
+    // 添加配置字段
+    private static TombstoneConfig config;
 
     @Override
     public void onInitialize() {
@@ -36,6 +39,9 @@ public class SimpleTombstone implements ModInitializer {
             //FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER
         ) {
             LOGGER.info("[SimpleTombstone] 服务器端初始化中...");
+            
+            // 加载配置
+            config = TombstoneConfig.load();
 
             // 监听玩家死亡事件
             ServerLivingEntityEvents.ALLOW_DEATH.register((entity, damageSource, damageAmount) -> {
@@ -143,16 +149,30 @@ public class SimpleTombstone implements ModInitializer {
 
         Random random = new Random();
         
-        // 获取所有非空的花盆
+        // 获取所有非空的花盆并根据配置过滤
         List<Block> flowerPots = new ArrayList<>();
-        
-        // 使用正确的Minecraft注册表获取方式
+
         Iterable<RegistryEntry<Block>> blockEntries = Registries.BLOCK.streamEntries().collect(Collectors.toList());
         
         for (RegistryEntry<Block> entry : blockEntries) {
             Block block = entry.value();
             if (block instanceof FlowerPotBlock && block != Blocks.FLOWER_POT) {
-                flowerPots.add(block);
+                String registryName = Registries.BLOCK.getId(block).toString();
+                
+                // 根据配置模式过滤花盆
+                boolean matches = false;
+                for (String potName : config.flowerPots) {
+                    if (registryName.equals(potName)) {
+                        matches = true;
+                        break;
+                    }
+                }
+                
+                // 白名单模式：只包含配置中的花盆
+                // 黑名单模式：排除配置中的花盆
+                if ((config.whitelistMode && matches) || (!config.whitelistMode && !matches)) {
+                    flowerPots.add(block);
+                }
             }
         }
         
@@ -160,12 +180,12 @@ public class SimpleTombstone implements ModInitializer {
             Block chosenFlowerPot = flowerPots.get(random.nextInt(flowerPots.size()));
             world.setBlockState(tombstonePos, chosenFlowerPot.getDefaultState());
         } else {
-            // 如果没有找到任何非空花盆，默认使用蒲公英花盆
+            // 如果没有找到任何匹配的花盆，默认使用蒲公英花盆
             Block defaultFlowerPot = Blocks.POTTED_DANDELION;
             flowerPots.add(defaultFlowerPot);
             Block chosenFlowerPot = flowerPots.get(random.nextInt(flowerPots.size()));
             world.setBlockState(tombstonePos, chosenFlowerPot.getDefaultState());
-            LOGGER.warn("[SimpleTombstone] 未找到可用非空花盆，使用默认蒲公英花盆。");
+            LOGGER.warn("[SimpleTombstone] 未找到可用花盆，使用默认蒲公英花盆。");
         }
 
         player.sendMessage(Text.of("A loot chest has been placed at " + deathPos.toShortString()), false);
