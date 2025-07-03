@@ -18,6 +18,9 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import java.util.*;
+import java.util.stream.Collectors;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.entry.RegistryEntry;
 
 public class SimpleTombstone implements ModInitializer {
     public static final String MOD_ID = "simple-tombstone";
@@ -139,14 +142,31 @@ public class SimpleTombstone implements ModInitializer {
         storage.addTombstone(tombstonePos, tombstoneData);  // Write tombstone data immediately
 
         Random random = new Random();
-        List<Block> flowerPots = Arrays.asList(
-                Blocks.POTTED_OAK_SAPLING,
-                Blocks.POTTED_DANDELION,
-                Blocks.POTTED_POPPY,
-                Blocks.POTTED_BLUE_ORCHID
-        );
-        Block chosenFlowerPot = flowerPots.get(random.nextInt(flowerPots.size()));
-        world.setBlockState(tombstonePos, chosenFlowerPot.getDefaultState());
+        
+        // 获取所有非空的花盆
+        List<Block> flowerPots = new ArrayList<>();
+        
+        // 使用正确的Minecraft注册表获取方式
+        Iterable<RegistryEntry<Block>> blockEntries = Registries.BLOCK.streamEntries().collect(Collectors.toList());
+        
+        for (RegistryEntry<Block> entry : blockEntries) {
+            Block block = entry.value();
+            if (block instanceof FlowerPotBlock && block != Blocks.FLOWER_POT) {
+                flowerPots.add(block);
+            }
+        }
+        
+        if (!flowerPots.isEmpty()) {
+            Block chosenFlowerPot = flowerPots.get(random.nextInt(flowerPots.size()));
+            world.setBlockState(tombstonePos, chosenFlowerPot.getDefaultState());
+        } else {
+            // 如果没有找到任何非空花盆，默认使用蒲公英花盆
+            Block defaultFlowerPot = Blocks.POTTED_DANDELION;
+            flowerPots.add(defaultFlowerPot);
+            Block chosenFlowerPot = flowerPots.get(random.nextInt(flowerPots.size()));
+            world.setBlockState(tombstonePos, chosenFlowerPot.getDefaultState());
+            LOGGER.warn("[SimpleTombstone] 未找到可用非空花盆，使用默认蒲公英花盆。");
+        }
 
         player.sendMessage(Text.of("A loot chest has been placed at " + deathPos.toShortString()), false);
         LOGGER.info("[SimpleTombstone] 为玩家 {} 在 {} 创建了墓碑。", player.getName().getString(), deathPos.toShortString());
