@@ -18,6 +18,13 @@ public class TombstoneStorage extends PersistentState {
     private static final Logger LOGGER = LoggerFactory.getLogger(TombstoneStorage.class);
 
     private final Map<BlockPos, SimpleTombstone.PlayerTombstoneData> tombstoneData = new HashMap<>();
+    // 添加配置字段
+    private final TombstoneConfig config;
+
+    // 在构造函数中初始化配置
+    public TombstoneStorage() {
+        this.config = TombstoneConfig.load();
+    }
 
     public static TombstoneStorage load(ServerWorld world) {
         //LOGGER.info("[TombstoneStorage] 加载墓碑数据...");
@@ -35,6 +42,27 @@ public class TombstoneStorage extends PersistentState {
 
     public void addTombstone(BlockPos pos, SimpleTombstone.PlayerTombstoneData data) {
         LOGGER.info("[TombstoneStorage] 添加墓碑数据: {}", pos.toShortString());
+        
+        // 检查是否达到玩家墓碑上限
+        if (config.maxTombstonesPerPlayer > 0) {
+            // 获取当前玩家的墓碑数量
+            long count = tombstoneData.values().stream()
+                .filter(d -> d.playerId().equals(data.playerId()))
+                .count();
+            
+            // 如果达到上限，删除最老的墓碑
+            if (count >= config.maxTombstonesPerPlayer) {
+                // 找到最老的墓碑（最早添加的）
+                tombstoneData.entrySet().stream()
+                    .filter(entry -> entry.getValue().playerId().equals(data.playerId()))
+                    .min(Map.Entry.comparingByKey())
+                    .ifPresent(entry -> {
+                        tombstoneData.remove(entry.getKey());
+                        LOGGER.warn("达到玩家墓碑上限({})，删除最老的墓碑:{}", config.maxTombstonesPerPlayer, entry.getKey().toShortString());
+                    });
+            }
+        }
+        
         tombstoneData.put(pos, data);
         markDirty();  // 确保数据被保存
     }

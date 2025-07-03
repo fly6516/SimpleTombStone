@@ -18,6 +18,9 @@ import java.util.List;
  * 默认值：黑名单模式，花盆列表为空
  */
 public class TombstoneConfig {
+    // 添加maxTombstonesPerPlayer配置项
+    public int maxTombstonesPerPlayer = 0;
+
     private static final Path CONFIG_DIR = FabricLoader.getInstance().getConfigDir();
     private static final Path CONFIG_PATH = CONFIG_DIR.resolve("simpletombstone.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
