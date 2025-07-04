@@ -1,5 +1,6 @@
 {
     "whitelistMode": false,
     "flowerPots": ["minecraft:flower_pot","minecraft:potted_wither_rose"],
-    "maxTombstonesPerPlayer": 0
+    "maxTombstonesPerPlayer": 0,
+    "checkDistanceEnabled": true
 }

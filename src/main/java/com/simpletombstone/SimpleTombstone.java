@@ -59,9 +59,12 @@ public class SimpleTombstone implements ModInitializer {
         });
 
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                if (RESURRECTED_PLAYERS.contains(player.getUuid())) {
-                    checkPlayerNearTombstone(player);
+            // 检查配置项是否启用再执行距离检测逻辑
+            if (config.checkDistanceEnabled) {
+                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                    if (RESURRECTED_PLAYERS.contains(player.getUuid())) {
+                        checkPlayerNearTombstone(player);
+                    }
                 }
             }
         });

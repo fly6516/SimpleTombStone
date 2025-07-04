@@ -21,6 +21,9 @@ public class TombstoneConfig {
     // 添加maxTombstonesPerPlayer配置项
     public int maxTombstonesPerPlayer = 0;
 
+    // 新增距离检测开关配置项，默认开启
+    public boolean checkDistanceEnabled = true;
+    
     private static final Path CONFIG_DIR = FabricLoader.getInstance().getConfigDir();
     private static final Path CONFIG_PATH = CONFIG_DIR.resolve("simpletombstone.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
