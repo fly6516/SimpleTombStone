@@ -120,8 +120,7 @@ public class SimpleTombstone implements ModInitializer {
         World world = player.getWorld();
         RegistryKey<World> dimension = player.getWorld().getRegistryKey();
 
-
-        while (deathPos.getY()<=0) {
+        while (deathPos.getY()<=world.getBottomY()) {
             deathPos = deathPos.up();
         }
         deathPos = deathPos.up();
@@ -224,10 +223,12 @@ public class SimpleTombstone implements ModInitializer {
                     for (ItemStack stack : data.items()) {
                         player.getInventory().offerOrDrop(stack);
                     }
-                    if (world.getBlockState(pos.down()).getBlock() == Blocks.GLASS) {
-                        world.removeBlock(pos.down(), false);
+                    pos=pos.down();
+                    if (world.getBlockState(pos.down()).getBlock() == Blocks.GLASS && !(pos.down().getY()==world.getBottomY())) {
+                        world.removeBlock(pos, false);
                         LOGGER.info("[SimpleTombstone] 删除墓碑的玻璃块。");
                     }
+                    pos=pos.up();
                     world.removeBlock(pos, false);
                     TOMBSTONE_CHESTS.remove(pos);
                     RESURRECTED_PLAYERS.remove(player.getUuid());
