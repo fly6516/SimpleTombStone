@@ -120,8 +120,11 @@ public class SimpleTombstone implements ModInitializer {
         World world = player.getWorld();
         RegistryKey<World> dimension = player.getWorld().getRegistryKey();
 
+        boolean deadinvoid =false;
+
         while (deathPos.getY()<=world.getBottomY()) {
             deathPos = deathPos.up();
+            deadinvoid = true;
         }
         deathPos = deathPos.up();
 
@@ -130,7 +133,7 @@ public class SimpleTombstone implements ModInitializer {
         }
         deathPos = deathPos.down();
 
-        if( dimension == World.END ){
+        if( dimension == World.END && deadinvoid){
             deathPos = deathPos.add(0,60,0);
             while(!world.isAir(deathPos.down())){
                 deathPos = deathPos.up();
