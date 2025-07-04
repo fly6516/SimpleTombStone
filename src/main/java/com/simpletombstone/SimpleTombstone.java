@@ -2,26 +2,27 @@ package com.simpletombstone;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-//import net.fabricmc.loader.api.FabricLoader;
-//import net.fabricmc.api.EnvType;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+
 import net.minecraft.block.*;
+import net.minecraft.item.ItemStack;
 import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import net.minecraft.item.ItemStack;
-import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+
 import java.util.*;
 import java.util.stream.Collectors;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.entry.RegistryEntry;
 
 public class SimpleTombstone implements ModInitializer {
     public static final String MOD_ID = "simple-tombstone";
@@ -29,123 +30,96 @@ public class SimpleTombstone implements ModInitializer {
     private static final Map<BlockPos, PlayerTombstoneData> TOMBSTONE_CHESTS = new HashMap<>();
     private static final Set<UUID> DEAD_PLAYERS = new HashSet<>();
     private static final Set<UUID> RESURRECTED_PLAYERS = new HashSet<>();
-    
-    // 添加配置字段
     private static TombstoneConfig config;
 
     @Override
     public void onInitialize() {
-        if (
-                true
-            //FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER
-        ) {
-            LOGGER.info("[SimpleTombstone] 服务器端初始化中...");
-            
-            // 加载配置
-            config = TombstoneConfig.load();
+        LOGGER.info("[SimpleTombstone] 服务器端初始化中...");
 
-            // 监听玩家死亡事件
-            ServerLivingEntityEvents.ALLOW_DEATH.register((entity, damageSource, damageAmount) -> {
-                if (entity instanceof ServerPlayerEntity player) {
-                    LOGGER.info("[SimpleTombstone] 检测到玩家 {} 死亡，创建墓碑...", player.getName().getString());
-                    RESURRECTED_PLAYERS.remove(player.getUuid());
-                    createTombstoneForMixin(player);
-                    DEAD_PLAYERS.add(player.getUuid());
-                    return false; // 阻止默认死亡逻辑，防止玩家直接死亡
+        config = TombstoneConfig.load();
+
+        ServerLivingEntityEvents.ALLOW_DEATH.register((entity, damageSource, damageAmount) -> {
+            if (entity instanceof ServerPlayerEntity player) {
+                LOGGER.info("[SimpleTombstone] 检测到玩家 {} 死亡，创建墓碑...", player.getName().getString());
+                RESURRECTED_PLAYERS.remove(player.getUuid());
+                createTombstoneForMixin(player);
+                DEAD_PLAYERS.add(player.getUuid());
+                return false;
+            }
+            return true;
+        });
+
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            UUID playerId = newPlayer.getUuid();
+            if (DEAD_PLAYERS.contains(playerId)) {
+                LOGGER.info("[SimpleTombstone] 玩家 {} 已重生，物品归还功能已启用。", newPlayer.getName().getString());
+                DEAD_PLAYERS.remove(playerId);
+                RESURRECTED_PLAYERS.add(playerId);
+            }
+        });
+
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                if (RESURRECTED_PLAYERS.contains(player.getUuid())) {
+                    checkPlayerNearTombstone(player);
                 }
-                return true;
-            });
+            }
+        });
 
-            // 监听玩家重生事件
-            ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
-                UUID playerId = newPlayer.getUuid();
-                if (DEAD_PLAYERS.contains(playerId)) {
-                    LOGGER.info("[SimpleTombstone] 玩家 {} 已重生，物品归还功能已启用。", newPlayer.getName().getString());
-                    DEAD_PLAYERS.remove(playerId);
-                    RESURRECTED_PLAYERS.add(playerId);
-                }
-            });
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+            if (world.isClient()) return ActionResult.PASS;
 
-            // 监听服务器每个 tick 检查玩家是否靠近墓碑
-            ServerTickEvents.END_SERVER_TICK.register(server -> {
-                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                    if (RESURRECTED_PLAYERS.contains(player.getUuid())) {
-                        checkPlayerNearTombstone(player);
-                    }
-                }
-            });
+            BlockPos pos = hitResult.getBlockPos();
+            BlockState state = world.getBlockState(pos);
 
-            // 注册花盆右键事件监听
-            UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-                if (world.isClient()) {
-                    return ActionResult.PASS; // 只在服务器端处理
-                }
-
-                BlockPos pos = hitResult.getBlockPos();
-                BlockState state = world.getBlockState(pos);
-
-                // 检查玩家是否点击了花盆
-                if (state.getBlock() == Blocks.FLOWER_POT) {
-                    TombstoneStorage storage = TombstoneStorage.load((ServerWorld) world);
-                    // 检查是否有墓碑数据
-                    for (Map.Entry<BlockPos, PlayerTombstoneData> entry : storage.getTombstoneData().entrySet()) {
-                        // 如果点击的花盆与墓碑位置相匹配
-                        if (entry.getKey().equals(pos)) {
-                            PlayerTombstoneData data = entry.getValue();
-                            // 将物品恢复给玩家
-                            for (ItemStack stack : data.items()) {
-                                player.getInventory().offerOrDrop(stack);
-                            }
-
-                            // 删除墓碑和数据
-                            world.removeBlock(pos, false);
-                            storage.removeTombstone(pos);
-                            player.sendMessage(Text.of("你的物品已经从墓碑中恢复！"), false);
-                            LOGGER.info("[SimpleTombstone] 玩家 {} 恢复了物品并删除了墓碑。", player.getName().getString());
-                            break;
+            if (state.getBlock() == Blocks.FLOWER_POT) {
+                TombstoneStorage storage = TombstoneStorage.load((ServerWorld) world);
+                for (Map.Entry<BlockPos, PlayerTombstoneData> entry : storage.getTombstoneData().entrySet()) {
+                    if (entry.getKey().equals(pos)) {
+                        PlayerTombstoneData data = entry.getValue();
+                        for (ItemStack stack : data.items()) {
+                            player.getInventory().offerOrDrop(stack);
                         }
+                        world.removeBlock(pos, false);
+                        storage.removeTombstone(pos);
+                        player.sendMessage(Text.of("你的物品已经从墓碑中恢复！"), false);
+                        LOGGER.info("[SimpleTombstone] 玩家 {} 恢复了物品并删除了墓碑。", player.getName().getString());
+                        break;
                     }
                 }
-                return ActionResult.PASS;
-            });
+            }
+            return ActionResult.PASS;
+        });
 
-
-
-            LOGGER.info("[SimpleTombstone] 服务器端初始化完成");
-        }
+        LOGGER.info("[SimpleTombstone] 服务器端初始化完成");
     }
 
     public static void createTombstoneForMixin(ServerPlayerEntity player) {
         BlockPos deathPos = player.getBlockPos();
         World world = player.getWorld();
-        RegistryKey<World> dimension = player.getWorld().getRegistryKey();
+        RegistryKey<World> dimension = world.getRegistryKey();
 
-        boolean deadinvoid =false;
-
-        while (deathPos.getY()<=world.getBottomY()) {
+        boolean deadinvoid = false;
+        while (deathPos.getY() <= world.getBottomY()) {
             deathPos = deathPos.up();
             deadinvoid = true;
         }
         deathPos = deathPos.up();
-
-        while (world.isAir(deathPos.down())&&deathPos.getY()>0) {
+        while (world.isAir(deathPos.down()) && deathPos.getY() > 0) {
             deathPos = deathPos.down();
         }
         deathPos = deathPos.down();
 
-        if( dimension == World.END && deadinvoid){
-            deathPos = deathPos.add(0,60,0);
-            while(!world.isAir(deathPos.down())){
+        if (dimension == World.END && deadinvoid) {
+            deathPos = deathPos.add(0, 60, 0);
+            while (!world.isAir(deathPos.down())) {
                 deathPos = deathPos.up();
             }
         }
 
-        // 只有下方是液体时才生成玻璃
         if (world.getBlockState(deathPos.down()).getBlock() instanceof FluidBlock) {
-            LOGGER.warn("[SimpleTombstone] 位置 {} 处下方为液体，替换为玻璃。", deathPos.toShortString());
             world.setBlockState(deathPos, Blocks.GLASS.getDefaultState());
         } else if (!world.getBlockState(deathPos).isFullCube(world, deathPos)) {
-            LOGGER.warn("[SimpleTombstone] 位置 {} 处非实体块，替换为玻璃。", deathPos.toShortString());
             world.setBlockState(deathPos, Blocks.GLASS.getDefaultState());
         }
 
@@ -153,57 +127,38 @@ public class SimpleTombstone implements ModInitializer {
         List<ItemStack> items = new ArrayList<>();
         for (int i = 0; i < player.getInventory().size(); i++) {
             ItemStack stack = player.getInventory().removeStack(i, Integer.MAX_VALUE);
-            if (!stack.isEmpty()) {
-                items.add(stack);
-            }
+            if (!stack.isEmpty()) items.add(stack);
         }
+
         PlayerTombstoneData tombstoneData = new PlayerTombstoneData(player.getUuid(), items);
-        TOMBSTONE_CHESTS.put(tombstonePos, tombstoneData);
+        PlayerTombstoneData existing = TOMBSTONE_CHESTS.get(tombstonePos);
 
-        // Ensure TombstoneStorage is loaded and Tombstone is added immediately
+        if (existing != null && existing.playerId().equals(player.getUuid())) {
+            List<ItemStack> merged = new ArrayList<>(existing.items());
+            merged.addAll(items);
+            TOMBSTONE_CHESTS.put(tombstonePos, new PlayerTombstoneData(player.getUuid(), merged));
+        } else {
+            TOMBSTONE_CHESTS.put(tombstonePos, tombstoneData);
+        }
+
         TombstoneStorage storage = TombstoneStorage.load((ServerWorld) world);
-        storage.addTombstone(tombstonePos, tombstoneData);  // Write tombstone data immediately
+        storage.addTombstone(tombstonePos, tombstoneData);
 
-        Random random = new Random();
-        
-        // 获取所有非空的花盆并根据配置过滤
         List<Block> flowerPots = new ArrayList<>();
-
         Iterable<RegistryEntry<Block>> blockEntries = Registries.BLOCK.streamEntries().collect(Collectors.toList());
-        
         for (RegistryEntry<Block> entry : blockEntries) {
             Block block = entry.value();
             if (block instanceof FlowerPotBlock && block != Blocks.FLOWER_POT) {
                 String registryName = Registries.BLOCK.getId(block).toString();
-                
-                // 根据配置模式过滤花盆
-                boolean matches = false;
-                for (String potName : config.flowerPots) {
-                    if (registryName.equals(potName)) {
-                        matches = true;
-                        break;
-                    }
-                }
-                
-                // 白名单模式：只包含配置中的花盆
-                // 黑名单模式：排除配置中的花盆
+                boolean matches = config.flowerPots.contains(registryName);
                 if ((config.whitelistMode && matches) || (!config.whitelistMode && !matches)) {
                     flowerPots.add(block);
                 }
             }
         }
-        
-        if (!flowerPots.isEmpty()) {
-            Block chosenFlowerPot = flowerPots.get(random.nextInt(flowerPots.size()));
-            world.setBlockState(tombstonePos, chosenFlowerPot.getDefaultState());
-        } else {
-            // 如果没有找到任何匹配的花盆，默认使用蒲公英花盆
-            Block defaultFlowerPot = Blocks.POTTED_DANDELION;
-            flowerPots.add(defaultFlowerPot);
-            Block chosenFlowerPot = flowerPots.get(random.nextInt(flowerPots.size()));
-            world.setBlockState(tombstonePos, chosenFlowerPot.getDefaultState());
-            LOGGER.warn("[SimpleTombstone] 未找到可用花盆，使用默认蒲公英花盆。");
-        }
+
+        Block chosen = flowerPots.isEmpty() ? Blocks.POTTED_DANDELION : flowerPots.get(new Random().nextInt(flowerPots.size()));
+        world.setBlockState(tombstonePos, chosen.getDefaultState());
 
         player.sendMessage(Text.of("A loot chest has been placed at " + deathPos.toShortString()), false);
         LOGGER.info("[SimpleTombstone] 为玩家 {} 在 {} 创建了墓碑。", player.getName().getString(), deathPos.toShortString());
@@ -222,16 +177,14 @@ public class SimpleTombstone implements ModInitializer {
             if (data != null && data.playerId().equals(player.getUuid())) {
                 Block block = world.getBlockState(pos).getBlock();
                 if (block instanceof FlowerPotBlock) {
-                    LOGGER.info("[SimpleTombstone] 玩家 {} 靠近墓碑，恢复物品。", player.getName().getString());
                     for (ItemStack stack : data.items()) {
                         player.getInventory().offerOrDrop(stack);
                     }
-                    pos=pos.down();
-                    if (world.getBlockState(pos.down()).getBlock() == Blocks.GLASS && !(pos.down().getY()==world.getBottomY())) {
+                    pos = pos.down();
+                    if (world.getBlockState(pos.down()).getBlock() == Blocks.GLASS && pos.down().getY() != world.getBottomY()) {
                         world.removeBlock(pos, false);
-                        LOGGER.info("[SimpleTombstone] 删除墓碑的玻璃块。");
                     }
-                    pos=pos.up();
+                    pos = pos.up();
                     world.removeBlock(pos, false);
                     TOMBSTONE_CHESTS.remove(pos);
                     RESURRECTED_PLAYERS.remove(player.getUuid());
@@ -242,7 +195,6 @@ public class SimpleTombstone implements ModInitializer {
             }
         }
     }
-
 
     public record PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
         public PlayerTombstoneData(UUID playerId, List<ItemStack> items) {

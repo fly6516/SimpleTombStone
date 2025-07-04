@@ -41,29 +41,51 @@ public class TombstoneStorage extends PersistentState {
 
     public void addTombstone(BlockPos pos, SimpleTombstone.PlayerTombstoneData data) {
         LOGGER.info("[TombstoneStorage] 添加墓碑数据: {}", pos.toShortString());
-        
-        // 检查是否达到玩家墓碑上限
+
+        // 是否已有墓碑记录
+        if (tombstoneData.containsKey(pos)) {
+            SimpleTombstone.PlayerTombstoneData existing = tombstoneData.get(pos);
+
+            // 若是同一玩家，合并 items 列表
+            if (existing.playerId().equals(data.playerId())) {
+                List<ItemStack> mergedItems = new ArrayList<>(existing.items());
+                mergedItems.addAll(data.items());
+
+                // 创建合并后的新数据
+                SimpleTombstone.PlayerTombstoneData merged =
+                        new SimpleTombstone.PlayerTombstoneData(existing.playerId(), mergedItems);
+
+                tombstoneData.put(pos, merged);
+                LOGGER.info("[TombstoneStorage] 合并墓碑数据: {}", pos.toShortString());
+
+                markDirty();
+                return;
+            }
+
+            // 否则为不同玩家，允许覆盖
+            LOGGER.warn("[TombstoneStorage] 同一位置已有其他玩家墓碑，将覆盖旧数据: {}", pos.toShortString());
+        }
+
+        // 检查玩家墓碑上限
         if (config.maxTombstonesPerPlayer > 0) {
-            // 获取当前玩家的墓碑数量
             long count = tombstoneData.values().stream()
-                .filter(d -> d.playerId().equals(data.playerId()))
-                .count();
-            
-            // 如果达到上限，删除最老的墓碑
+                    .filter(d -> d.playerId().equals(data.playerId()))
+                    .count();
+
             if (count >= config.maxTombstonesPerPlayer) {
-                // 找到最老的墓碑（最早添加的）
                 tombstoneData.entrySet().stream()
-                    .filter(entry -> entry.getValue().playerId().equals(data.playerId()))
-                    .min(Map.Entry.comparingByKey())
-                    .ifPresent(entry -> {
-                        tombstoneData.remove(entry.getKey());
-                        LOGGER.warn("达到玩家墓碑上限({})，删除最老的墓碑:{}", config.maxTombstonesPerPlayer, entry.getKey().toShortString());
-                    });
+                        .filter(entry -> entry.getValue().playerId().equals(data.playerId()))
+                        .min(Map.Entry.comparingByKey())
+                        .ifPresent(entry -> {
+                            tombstoneData.remove(entry.getKey());
+                            LOGGER.warn("达到玩家墓碑上限({})，删除最老的墓碑: {}", config.maxTombstonesPerPlayer, entry.getKey().toShortString());
+                        });
             }
         }
-        
+
         tombstoneData.put(pos, data);
-        markDirty();  // 确保数据被保存
+        LOGGER.info("[TombstoneStorage] 添加新墓碑记录: {}", pos.toShortString());
+        markDirty();
     }
 
     public void removeTombstone(BlockPos pos) {
