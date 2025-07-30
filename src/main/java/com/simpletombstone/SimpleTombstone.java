@@ -1,6 +1,7 @@
 package com.simpletombstone;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.entity.FakePlayer;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -39,7 +40,7 @@ public class SimpleTombstone implements ModInitializer {
         config = TombstoneConfig.load();
 
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, damageSource, damageAmount) -> {
-            if (entity instanceof ServerPlayerEntity player) {
+            if (entity instanceof ServerPlayerEntity player && !(entity instanceof FakePlayer)) {
                 LOGGER.info("[SimpleTombstone] 检测到玩家 {} 死亡，创建墓碑...", player.getName().getString());
                 RESURRECTED_PLAYERS.remove(player.getUuid());
                 createTombstoneForMixin(player);
