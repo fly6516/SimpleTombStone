@@ -17,114 +17,113 @@ public class TombstoneStorage extends PersistentState {
     private static final String KEY_PLAYER_ID = "PlayerId";
     private static final Logger LOGGER = LoggerFactory.getLogger(TombstoneStorage.class);
 
-    private final Map<BlockPos, SimpleTombstone.PlayerTombstoneData> tombstoneData = new HashMap<>();
-    // 添加配置字段
+    // 更改为每个位置存储多个玩家的墓碑数据
+    private final Map<BlockPos, List<SimpleTombstone.PlayerTombstoneData>> tombstoneData = new HashMap<>();
     private final TombstoneConfig config;
 
-    // 在构造函数中初始化配置
     public TombstoneStorage() {
         this.config = TombstoneConfig.load();
     }
 
     public static TombstoneStorage load(ServerWorld world) {
-        //LOGGER.info("[TombstoneStorage] 加载墓碑数据...");
         return world.getPersistentStateManager().getOrCreate(
                 new PersistentState.Type<>(
-                        TombstoneStorage::new,  // Supplier
-                        TombstoneStorage::fromNbt,           // NBT加载函数
-                        null                           // 可选的DataFixTypes（版本升级用）
+                        TombstoneStorage::new,
+                        TombstoneStorage::fromNbt,
+                        null
                 ),
-                "simple_tombstone"                 // 存储名称
+                "simple_tombstone"
         );
-        //LOGGER.info("[TombstoneStorage] 成功加载墓碑数据.");
     }
 
     public void addTombstone(BlockPos pos, SimpleTombstone.PlayerTombstoneData data) {
         LOGGER.info("[TombstoneStorage] 添加墓碑数据: {}", pos.toShortString());
 
-        // 是否已有墓碑记录
-        if (tombstoneData.containsKey(pos)) {
-            SimpleTombstone.PlayerTombstoneData existing = tombstoneData.get(pos);
+        List<SimpleTombstone.PlayerTombstoneData> existingList = tombstoneData.getOrDefault(pos, new ArrayList<>());
+        boolean merged = false;
 
-            // 若是同一玩家，合并 items 列表
+        for (int i = 0; i < existingList.size(); i++) {
+            SimpleTombstone.PlayerTombstoneData existing = existingList.get(i);
             if (existing.playerId().equals(data.playerId())) {
                 List<ItemStack> mergedItems = new ArrayList<>(existing.items());
                 mergedItems.addAll(data.items());
-
-                // 创建合并后的新数据
-                SimpleTombstone.PlayerTombstoneData merged =
-                        new SimpleTombstone.PlayerTombstoneData(existing.playerId(), mergedItems);
-
-                tombstoneData.put(pos, merged);
-                LOGGER.info("[TombstoneStorage] 合并墓碑数据: {}", pos.toShortString());
-
-                markDirty();
-                return;
+                existingList.set(i, new SimpleTombstone.PlayerTombstoneData(existing.playerId(), mergedItems));
+                LOGGER.info("[TombstoneStorage] 合并同玩家墓碑数据: {}", pos.toShortString());
+                merged = true;
+                break;
             }
-
-            // 否则为不同玩家，允许覆盖
-            LOGGER.warn("[TombstoneStorage] 同一位置已有其他玩家墓碑，将覆盖旧数据: {}", pos.toShortString());
         }
 
-        // 检查玩家墓碑上限
+        if (!merged) {
+            existingList.add(data);
+            LOGGER.info("[TombstoneStorage] 添加新玩家墓碑记录: {}", pos.toShortString());
+        }
+
+        tombstoneData.put(pos, existingList);
+
+        // 限制玩家最大墓碑数
         if (config.maxTombstonesPerPlayer > 0) {
-            long count = tombstoneData.values().stream()
-                    .filter(d -> d.playerId().equals(data.playerId()))
-                    .count();
+            List<Map.Entry<BlockPos, SimpleTombstone.PlayerTombstoneData>> all = new ArrayList<>();
+            for (Map.Entry<BlockPos, List<SimpleTombstone.PlayerTombstoneData>> entry : tombstoneData.entrySet()) {
+                for (SimpleTombstone.PlayerTombstoneData d : entry.getValue()) {
+                    if (d.playerId().equals(data.playerId())) {
+                        all.add(new AbstractMap.SimpleEntry<>(entry.getKey(), d));
+                    }
+                }
+            }
 
-            if (count >= config.maxTombstonesPerPlayer) {
-                tombstoneData.entrySet().stream()
-                        .filter(entry -> entry.getValue().playerId().equals(data.playerId()))
-                        .min(Map.Entry.comparingByKey())
-                        .ifPresent(entry -> {
-                            tombstoneData.remove(entry.getKey());
-                            LOGGER.warn("达到玩家墓碑上限({})，删除最老的墓碑: {}", config.maxTombstonesPerPlayer, entry.getKey().toShortString());
-                        });
+            if (all.size() > config.maxTombstonesPerPlayer) {
+                Map.Entry<BlockPos, SimpleTombstone.PlayerTombstoneData> oldest = all.get(0);
+                tombstoneData.get(oldest.getKey()).remove(oldest.getValue());
+                if (tombstoneData.get(oldest.getKey()).isEmpty()) {
+                    tombstoneData.remove(oldest.getKey());
+                }
+                LOGGER.warn("达到玩家墓碑上限({})，删除最老墓碑: {}", config.maxTombstonesPerPlayer, oldest.getKey().toShortString());
             }
         }
 
-        tombstoneData.put(pos, data);
-        LOGGER.info("[TombstoneStorage] 添加新墓碑记录: {}", pos.toShortString());
         markDirty();
     }
 
-    public void removeTombstone(BlockPos pos) {
-        LOGGER.info("[TombstoneStorage] 移除墓碑数据: {}", pos.toShortString());
-        tombstoneData.remove(pos);
-        markDirty();  // 确保数据被保存
+    public void removeTombstone(BlockPos pos, UUID playerId) {
+        List<SimpleTombstone.PlayerTombstoneData> list = tombstoneData.get(pos);
+        if (list != null) {
+            list.removeIf(data -> data.playerId().equals(playerId));
+            if (list.isEmpty()) {
+                tombstoneData.remove(pos);
+            }
+            LOGGER.info("[TombstoneStorage] 移除玩家 {} 的墓碑数据: {}", playerId, pos.toShortString());
+            markDirty();
+        }
     }
 
-    public Map<BlockPos, SimpleTombstone.PlayerTombstoneData> getTombstoneData() {
+    public Map<BlockPos, List<SimpleTombstone.PlayerTombstoneData>> getTombstoneData() {
         return tombstoneData;
     }
 
     @Override
     public NbtCompound writeNbt(NbtCompound nbt) {
-        LOGGER.info("[TombstoneStorage] 写入墓碑数据到 NBT...");
         NbtList tombstoneList = new NbtList();
-        for (Map.Entry<BlockPos, SimpleTombstone.PlayerTombstoneData> entry : tombstoneData.entrySet()) {
-            NbtCompound tombstoneTag = new NbtCompound();
-            tombstoneTag.put(KEY_POS, NbtHelper.fromBlockPos(entry.getKey()));
-            tombstoneTag.putUuid(KEY_PLAYER_ID, entry.getValue().playerId());
+        for (Map.Entry<BlockPos, List<SimpleTombstone.PlayerTombstoneData>> entry : tombstoneData.entrySet()) {
+            for (SimpleTombstone.PlayerTombstoneData data : entry.getValue()) {
+                NbtCompound tombstoneTag = new NbtCompound();
+                tombstoneTag.put(KEY_POS, NbtHelper.fromBlockPos(entry.getKey()));
+                tombstoneTag.putUuid(KEY_PLAYER_ID, data.playerId());
 
-            NbtList itemList = new NbtList();
-            for (ItemStack stack : entry.getValue().items()) {
-                NbtCompound stackTag = stack.writeNbt(new NbtCompound());
-                itemList.add(stackTag);
+                NbtList itemList = new NbtList();
+                for (ItemStack stack : data.items()) {
+                    itemList.add(stack.writeNbt(new NbtCompound()));
+                }
+                tombstoneTag.put(KEY_ITEMS, itemList);
+
+                tombstoneList.add(tombstoneTag);
             }
-            tombstoneTag.put(KEY_ITEMS, itemList);
-            tombstoneList.add(tombstoneTag);
         }
         nbt.put(KEY_TOMBSTONES, tombstoneList);
-
-        // 打印完整的NBT数据以检查格式
-        LOGGER.info("[TombstoneStorage] 写入的 NBT 数据: {}", nbt);
-        LOGGER.info("[TombstoneStorage] NBT 数据写入成功.");
         return nbt;
     }
 
     public static TombstoneStorage fromNbt(NbtCompound nbt) {
-        //LOGGER.info("[TombstoneStorage] 从 NBT 加载墓碑数据...");
         TombstoneStorage storage = new TombstoneStorage();
         NbtList tombstoneList = nbt.getList(KEY_TOMBSTONES, NbtElement.COMPOUND_TYPE);
 
@@ -139,11 +138,10 @@ public class TombstoneStorage extends PersistentState {
                 items.add(ItemStack.fromNbt((NbtCompound) itemElement));
             }
 
-            storage.tombstoneData.put(pos, new SimpleTombstone.PlayerTombstoneData(playerId, items));
-            LOGGER.info("[TombstoneStorage] 加载墓碑: {}，玩家ID: {}", pos.toShortString(), playerId);
+            storage.tombstoneData.computeIfAbsent(pos, k -> new ArrayList<>())
+                    .add(new SimpleTombstone.PlayerTombstoneData(playerId, items));
         }
 
-        //LOGGER.info("[TombstoneStorage] 成功加载墓碑数据.");
         return storage;
     }
 }
