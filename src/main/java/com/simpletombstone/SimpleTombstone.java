@@ -127,13 +127,16 @@ public class SimpleTombstone implements ModInitializer {
         BlockPos basePos = deathPos.down();
         BlockState baseState = world.getBlockState(basePos);
 
-        if (baseState.getFluidState().isOf(Fluids.WATER)) {
-            while (world.getFluidState(deathPos).isOf(Fluids.WATER)) {
+        if (world.getFluidState(deathPos).isOf(Fluids.WATER)) {
+            while (world.getFluidState(deathPos).isOf(Fluids.WATER) && deathPos.getY() < world.getTopY()) {
                 deathPos = deathPos.up();
             }
             basePos = deathPos.down();
-            world.setBlockState(basePos, Blocks.GLASS.getDefaultState());
-        } else if (baseState.getFluidState().isOf(Fluids.LAVA)) {
+            BlockState below = world.getBlockState(basePos);
+            if (below.getFluidState().isOf(Fluids.WATER) || !below.isSolidBlock(world, basePos)) {
+                world.setBlockState(basePos, Blocks.GLASS.getDefaultState());
+            }
+        } else if (world.getFluidState(deathPos).isOf(Fluids.LAVA)) {
             while (world.getFluidState(deathPos).isOf(Fluids.LAVA) && deathPos.getY() < world.getTopY()) {
                 deathPos = deathPos.up();
             }
