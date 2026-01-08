@@ -1,5 +1,7 @@
 package com.simpletombstone;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
@@ -16,6 +18,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
+import net.minecraft.util.Uuids;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.World;
@@ -105,7 +108,7 @@ public class SimpleTombstone implements ModInitializer {
 
     public static void createTombstoneForMixin(ServerPlayerEntity player) {
         BlockPos deathPos = player.getBlockPos();
-        World world = player.getEntityWorld();
+        ServerWorld world = player.getEntityWorld();
         RegistryKey<World> dimension = world.getRegistryKey();
 
         boolean deadInVoid = false;
@@ -163,7 +166,7 @@ public class SimpleTombstone implements ModInitializer {
 
         TOMBSTONE_CHESTS.computeIfAbsent(tombstonePos, k -> new ArrayList<>()).add(newData);
 
-        TombstoneStorage storage = TombstoneStorage.load((ServerWorld) world);
+        TombstoneStorage storage = TombstoneStorage.load(world);
         storage.addTombstone(tombstonePos, newData);
 
         List<Block> flowerPots = Registries.BLOCK.streamEntries()
@@ -184,9 +187,9 @@ public class SimpleTombstone implements ModInitializer {
     }
 
     private void checkPlayerNearTombstone(ServerPlayerEntity player) {
-        World world = player.getEntityWorld();
+        ServerWorld world = player.getEntityWorld();
         BlockPos playerPos = player.getBlockPos();
-        TombstoneStorage storage = TombstoneStorage.load((ServerWorld) world);
+        TombstoneStorage storage = TombstoneStorage.load(world);
 
         for (BlockPos pos : BlockPos.iterate(
                 playerPos.getX() - 4, playerPos.getY() - 4, playerPos.getZ() - 4,
@@ -227,5 +230,12 @@ public class SimpleTombstone implements ModInitializer {
             public List<ItemStack> items() {
                 return Collections.unmodifiableList(items);
             }
-        }
+
+        public static final Codec<PlayerTombstoneData> CODEC = RecordCodecBuilder.create(instance ->
+                instance.group(
+                        Uuids.CODEC.fieldOf("playerId").forGetter(PlayerTombstoneData::playerId),
+                        ItemStack.CODEC.listOf().fieldOf("items").forGetter(PlayerTombstoneData::items)
+                ).apply(instance, PlayerTombstoneData::new)
+        );
+    }
 }

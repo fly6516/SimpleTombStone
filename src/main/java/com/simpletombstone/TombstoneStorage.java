@@ -1,8 +1,12 @@
 package com.simpletombstone;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.nbt.*;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Uuids;
 import net.minecraft.world.PersistentState;
+import net.minecraft.world.PersistentStateType;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.item.ItemStack;
 import org.slf4j.Logger;
@@ -21,20 +25,34 @@ public class TombstoneStorage extends PersistentState {
     private final Map<BlockPos, List<SimpleTombstone.PlayerTombstoneData>> tombstoneData = new HashMap<>();
     private final TombstoneConfig config;
 
+    public static final Codec<TombstoneStorage> STORAGE_CODEC =
+            RecordCodecBuilder.create(instance -> instance.group(
+                    Codec.unboundedMap(
+                            BlockPos.CODEC,
+                            SimpleTombstone.PlayerTombstoneData.CODEC.listOf()
+                    ).fieldOf(KEY_TOMBSTONES).forGetter(TombstoneStorage::getTombstoneData)
+            ).apply(instance, data -> {
+                TombstoneStorage storage = new TombstoneStorage();
+                storage.tombstoneData.putAll(data);
+                return storage;
+            }));
+
     public TombstoneStorage() {
         this.config = TombstoneConfig.load();
     }
 
+    public static final PersistentStateType<TombstoneStorage> TYPE =
+            new PersistentStateType<>(
+                    "simple_tombstone",
+                    TombstoneStorage::new,     // Supplier<TombstoneStorage>
+                    STORAGE_CODEC,               // 这是 Function<Context, Codec<T>>
+                    null
+            );
+
     public static TombstoneStorage load(ServerWorld world) {
-        return world.getPersistentStateManager().getOrCreate(
-                new PersistentState.Type<>(
-                        TombstoneStorage::new,
-                        TombstoneStorage::fromNbt,
-                        null
-                ),
-                "simple_tombstone"
-        );
+        return world.getPersistentStateManager().getOrCreate(TYPE);
     }
+
 
     public void addTombstone(BlockPos pos, SimpleTombstone.PlayerTombstoneData data) {
         LOGGER.info("[TombstoneStorage] 添加墓碑数据: {}", pos.toShortString());
