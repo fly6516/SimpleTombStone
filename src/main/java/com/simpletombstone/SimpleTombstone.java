@@ -17,6 +17,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.Heightmap;
 import net.minecraft.world.World;
 
 import org.slf4j.Logger;
@@ -104,7 +105,7 @@ public class SimpleTombstone implements ModInitializer {
 
     public static void createTombstoneForMixin(ServerPlayerEntity player) {
         BlockPos deathPos = player.getBlockPos();
-        World world = player.getWorld();
+        World world = player.getEntityWorld();
         RegistryKey<World> dimension = world.getRegistryKey();
 
         boolean deadInVoid = false;
@@ -128,7 +129,7 @@ public class SimpleTombstone implements ModInitializer {
         BlockState baseState = world.getBlockState(basePos);
 
         if (world.getFluidState(deathPos).isOf(Fluids.WATER)) {
-            while (world.getFluidState(deathPos).isOf(Fluids.WATER) && deathPos.getY() < world.getTopY()) {
+            while (world.getFluidState(deathPos).isOf(Fluids.WATER) && deathPos.getY() < world.getTopY(Heightmap.Type.WORLD_SURFACE, deathPos)) {
                 deathPos = deathPos.up();
             }
             basePos = deathPos.down();
@@ -137,7 +138,7 @@ public class SimpleTombstone implements ModInitializer {
                 world.setBlockState(basePos, Blocks.GLASS.getDefaultState());
             }
         } else if (world.getFluidState(deathPos).isOf(Fluids.LAVA)) {
-            while (world.getFluidState(deathPos).isOf(Fluids.LAVA) && deathPos.getY() < world.getTopY()) {
+            while (world.getFluidState(deathPos).isOf(Fluids.LAVA) && deathPos.getY() < world.getTopY(Heightmap.Type.WORLD_SURFACE, deathPos)) {
                 deathPos = deathPos.up();
             }
             basePos = deathPos.down();
@@ -183,7 +184,7 @@ public class SimpleTombstone implements ModInitializer {
     }
 
     private void checkPlayerNearTombstone(ServerPlayerEntity player) {
-        World world = player.getWorld();
+        World world = player.getEntityWorld();
         BlockPos playerPos = player.getBlockPos();
         TombstoneStorage storage = TombstoneStorage.load((ServerWorld) world);
 

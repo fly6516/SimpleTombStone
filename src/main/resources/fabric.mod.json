@@ -18,6 +18,9 @@
 		],
 		"client": [
 			"com.simpletombstone.SimpleTombstoneClient"
+		],
+		"fabric-datagen": [
+			"com.simpletombstone.SimpletombstoneDataGenerator"
 		]
 	},
 	"mixins": [
@@ -28,12 +31,9 @@
 		}
 	],
 	"depends": {
-		"fabricloader": ">=0.16.10",
-		"minecraft": "~1.20.4",
-		"java": ">=17",
+		"fabricloader": ">=0.18.4",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
 		"fabric-api": "*"
-	},
-	"suggests": {
-		"another-mod": "*"
 	}
 }
