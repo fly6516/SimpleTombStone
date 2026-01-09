@@ -221,15 +221,15 @@ public class SimpleTombstone implements ModInitializer {
     }
 
     public record PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
-            public PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
-                this.playerId = playerId;
-                this.items = new ArrayList<>(items);
-            }
+        public PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
+            this.playerId = playerId;
+            this.items = new ArrayList<>(items);
+        }
 
-            @Override
-            public List<ItemStack> items() {
-                return Collections.unmodifiableList(items);
-            }
+        @Override
+        public List<ItemStack> items() {
+            return Collections.unmodifiableList(items);
+        }
 
         public static final Codec<PlayerTombstoneData> CODEC = RecordCodecBuilder.create(instance ->
                 instance.group(
