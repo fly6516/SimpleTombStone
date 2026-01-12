@@ -200,6 +200,9 @@ public class SimpleTombstone implements ModInitializer {
                 while (it.hasNext()) {
                     PlayerTombstoneData data = it.next();
                     if (data.playerId().equals(player.getUuid())) {
+                        if (!canInventoryFitAll(player, data.items())) {
+                            return;
+                        }
                         for (ItemStack stack : data.items()) {
                             player.getInventory().offerOrDrop(stack);
                         }
@@ -237,5 +240,46 @@ public class SimpleTombstone implements ModInitializer {
                         ItemStack.CODEC.listOf().fieldOf("items").forGetter(PlayerTombstoneData::items)
                 ).apply(instance, PlayerTombstoneData::new)
         );
+    }
+
+    private boolean canInventoryFitAll(ServerPlayerEntity player, List<ItemStack> items) {
+        var inventory = player.getInventory();
+
+        ItemStack[] simulated = new ItemStack[inventory.size()];
+        for (int i = 0; i < inventory.size(); i++) {
+            simulated[i] = inventory.getStack(i).copy();
+        }
+
+        for (ItemStack stack : items) {
+            ItemStack remaining = stack.copy();
+
+            for (int i = 0; i < simulated.length && !remaining.isEmpty(); i++) {
+                ItemStack slot = simulated[i];
+                if (!slot.isEmpty()
+                        && ItemStack.areItemsAndComponentsEqual(slot, remaining)
+                        && slot.getCount() < slot.getMaxCount()) {
+
+                    int transferable = Math.min(
+                            slot.getMaxCount() - slot.getCount(),
+                            remaining.getCount()
+                    );
+                    slot.increment(transferable);
+                    remaining.decrement(transferable);
+                }
+            }
+
+            for (int i = 0; i < simulated.length && !remaining.isEmpty(); i++) {
+                if (simulated[i].isEmpty()) {
+                    simulated[i] = remaining.copy();
+                    remaining = ItemStack.EMPTY;
+                }
+            }
+
+            if (!remaining.isEmpty()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
