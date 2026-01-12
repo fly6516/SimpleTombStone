@@ -112,20 +112,26 @@ public class SimpleTombstone implements ModInitializer {
         RegistryKey<World> dimension = world.getRegistryKey();
 
         boolean deadInVoid = false;
-        while (deathPos.getY() <= world.getBottomY()) {
-            deathPos = deathPos.up();
+        if (deathPos.getY() <= world.getBottomY()) {
+            //LOGGER.info("death in void.ocation:{}", deathPos);
             deadInVoid = true;
-        }
-
-        if (dimension == World.END && deadInVoid) {
-            deathPos = deathPos.add(0, 60, 0);
-            while (!world.isAir(deathPos)) {
+            while (deathPos.getY() <= world.getBottomY()) {
                 deathPos = deathPos.up();
             }
         }
 
-        while (world.isAir(deathPos.down()) && deathPos.getY() > 0) {
-            deathPos = deathPos.down();
+        if (dimension == World.END && deadInVoid) {
+            //LOGGER.info("death in end.Location:{}", deathPos);
+            deathPos = deathPos.add(0,60,0);
+            //LOGGER.info("relocate deathpos in end.New location:{}",deathPos);
+            while (!world.isAir(deathPos)) {
+                deathPos = deathPos.up();
+            }
+        }
+        if(!deadInVoid){
+            while (world.isAir(deathPos.down()) && deathPos.getY() > 0) {
+                deathPos = deathPos.down();
+            }
         }
 
         BlockPos basePos = deathPos.down();
