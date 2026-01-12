@@ -113,17 +113,19 @@ public class SimpleTombstone implements ModInitializer {
 
         boolean deadInVoid = false;
         if (deathPos.getY() <= world.getBottomY()) {
-            //LOGGER.info("death in void.ocation:{}", deathPos);
+            //LOGGER.info("death in void.Location:{}", deathPos);
             deadInVoid = true;
             while (deathPos.getY() <= world.getBottomY()) {
                 deathPos = deathPos.up();
             }
         }
 
+        boolean deadInEnd = false;
         if (dimension == World.END && deadInVoid) {
             //LOGGER.info("death in end.Location:{}", deathPos);
+            deadInEnd=true;
             deathPos = deathPos.add(0,60,0);
-            //LOGGER.info("relocate deathpos in end.New location:{}",deathPos);
+            //LOGGER.info("relocate death position in end.New location:{}",deathPos);
             while (!world.isAir(deathPos)) {
                 deathPos = deathPos.up();
             }
@@ -158,6 +160,10 @@ public class SimpleTombstone implements ModInitializer {
                 !baseState.isFullCube(world, basePos) ||
                 !baseState.isSolidBlock(world, basePos)) {
             world.setBlockState(basePos, Blocks.GLASS.getDefaultState());
+        }
+
+        if (deadInEnd) {
+            placeEndPlatformIfPossible(world,basePos);
         }
 
         BlockPos tombstonePos = basePos.up();
@@ -287,5 +293,45 @@ public class SimpleTombstone implements ModInitializer {
         }
 
         return true;
+    }
+
+    private static void placeEndPlatformIfPossible(ServerWorld world, BlockPos basePos) {
+
+        BlockPos[] glassPositions = {
+                basePos.add( 1, 0,  0),
+                basePos.add(-1, 0,  0),
+                basePos.add( 0, 0,  1),
+                basePos.add( 0, 0, -1),
+                basePos.add( 1, 0,  1),
+                basePos.add( 1, 0, -1),
+                basePos.add(-1, 0,  1),
+                basePos.add(-1, 0, -1)
+        };
+
+        BlockPos[] torchPositions = {
+                basePos.add( 1, 1,  1),
+                basePos.add( 1, 1, -1),
+                basePos.add(-1, 1,  1),
+                basePos.add(-1, 1, -1)
+        };
+
+        for (BlockPos pos : glassPositions) {
+            if (!world.getBlockState(pos).isAir()) {
+                return;
+            }
+        }
+        for (BlockPos pos : torchPositions) {
+            if (!world.getBlockState(pos).isAir()) {
+                return;
+            }
+        }
+
+        for (BlockPos pos : glassPositions) {
+            world.setBlockState(pos, Blocks.GLASS.getDefaultState());
+        }
+
+        for (BlockPos pos : torchPositions) {
+            world.setBlockState(pos, Blocks.TORCH.getDefaultState());
+        }
     }
 }
