@@ -131,17 +131,17 @@ public class SimpleTombstone implements ModInitializer {
         BlockPos basePos = deathPos.down();
         BlockState baseState = world.getBlockState(basePos);
 
-        if (world.getFluidState(deathPos).isOf(Fluids.WATER)) {
-            while (world.getFluidState(deathPos).isOf(Fluids.WATER) && deathPos.getY() < world.getTopY(Heightmap.Type.WORLD_SURFACE, deathPos)) {
+        if (world.getFluidState(deathPos).isOf(Fluids.WATER)|| world.getFluidState(deathPos).isOf(Fluids.FLOWING_WATER)) {
+            while ((world.getFluidState(deathPos).isOf(Fluids.WATER)|| world.getFluidState(deathPos).isOf(Fluids.FLOWING_WATER) && deathPos.getY() < world.getTopY(Heightmap.Type.WORLD_SURFACE, deathPos))) {
                 deathPos = deathPos.up();
             }
             basePos = deathPos.down();
             BlockState below = world.getBlockState(basePos);
-            if (below.getFluidState().isOf(Fluids.WATER) || !below.isSolidBlock(world, basePos)) {
+            if (below.getFluidState().isOf(Fluids.WATER) || below.getFluidState().isOf(Fluids.FLOWING_WATER) || !below.isSolidBlock(world, basePos)) {
                 world.setBlockState(basePos, Blocks.GLASS.getDefaultState());
             }
-        } else if (world.getFluidState(deathPos).isOf(Fluids.LAVA)) {
-            while (world.getFluidState(deathPos).isOf(Fluids.LAVA) && deathPos.getY() < world.getTopY(Heightmap.Type.WORLD_SURFACE, deathPos)) {
+        } else if (world.getFluidState(deathPos).isOf(Fluids.LAVA)|| world.getFluidState(deathPos).isOf(Fluids.FLOWING_LAVA)) {
+            while ((world.getFluidState(deathPos).isOf(Fluids.LAVA)|| world.getFluidState(deathPos).isOf(Fluids.FLOWING_LAVA)) && deathPos.getY() < world.getTopY(Heightmap.Type.WORLD_SURFACE, deathPos)) {
                 deathPos = deathPos.up();
             }
             basePos = deathPos.down();
