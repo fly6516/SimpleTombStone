@@ -3,6 +3,7 @@ package com.simpletombstone;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -42,6 +43,11 @@ public class SimpleTombstone implements ModInitializer {
 
         config = TombstoneConfig.load();
 
+        CommandRegistrationCallback.EVENT.register(
+                (dispatcher, registryAccess, environment) ->
+                        TombstoneCommand.register(dispatcher)
+        );
+
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, damageSource, damageAmount) -> {
             if (entity instanceof ServerPlayerEntity player) {
                 if (player.getClass().getName().contains("EntityPlayerMPFake")) {
@@ -78,35 +84,29 @@ public class SimpleTombstone implements ModInitializer {
 
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             if (world.isClient()) return ActionResult.PASS;
+            if (!(player instanceof ServerPlayerEntity serverPlayer)) {
+                return ActionResult.PASS;
+            }
 
             BlockPos pos = hitResult.getBlockPos();
             BlockState state = world.getBlockState(pos);
 
             if (state.getBlock() instanceof FlowerPotBlock) {
-                TombstoneStorage storage = TombstoneStorage.load((ServerWorld) world);
-                List<PlayerTombstoneData> dataList = storage.getTombstoneData().get(pos);
-                if (dataList != null) {
-                    for (PlayerTombstoneData data : dataList) {
-                        if (data.playerId().equals(player.getUuid())) {
-                            for (ItemStack stack : data.items()) {
-                                player.getInventory().offerOrDrop(stack);
-                            }
-                            
-                            // 归还经验值
-                            if (config.saveExperience) {
-                                player.addExperienceLevels(data.expLevel());
-                                player.addExperience(Math.round(player.getNextLevelExperience() * data.expProgress()));
-                            }
-                            
-                            world.removeBlock(pos, false);
-                            storage.removeTombstone(pos, player.getUuid());
-                            player.sendMessage(Text.of("你的物品和经验值已经从墓碑中恢复！"), false);
-                            LOGGER.info("[SimpleTombstone] 玩家 {} 恢复了物品和经验值并删除了墓碑。", player.getName().getString());
-                            break;
-                        }
-                    }
+                boolean success = triggerReturn(
+                        (ServerWorld) world,
+                        pos,
+                        serverPlayer
+                );
+
+                if (success) {
+                    LOGGER.info(
+                            "[SimpleTombstone] 玩家 {} 通过交互恢复了墓碑物品",
+                            serverPlayer.getName().getString()
+                    );
+                    return ActionResult.SUCCESS;
                 }
             }
+
             return ActionResult.PASS;
         });
 
@@ -328,6 +328,55 @@ public class SimpleTombstone implements ModInitializer {
         }
 
         return true;
+    }
+
+    public static boolean triggerReturn(
+            ServerWorld world,
+            BlockPos pos,
+            ServerPlayerEntity player
+    ) {
+        TombstoneStorage storage = TombstoneStorage.get(world);
+        List<PlayerTombstoneData> dataList = storage.getTombstoneData().get(pos);
+
+        if (dataList == null || dataList.isEmpty()) {
+            return false;
+        }
+
+        Iterator<PlayerTombstoneData> it = dataList.iterator();
+        while (it.hasNext()) {
+            PlayerTombstoneData data = it.next();
+
+            if (!data.playerId().equals(player.getUuid())) {
+                continue;
+            }
+
+            // 归还物品
+            for (ItemStack stack : data.items()) {
+                player.getInventory().offerOrDrop(stack.copy());
+            }
+
+            // 归还经验
+            if (TombstoneConfig.load().saveExperience) {
+                player.addExperienceLevels(data.expLevel());
+                int exp = Math.round(player.getNextLevelExperience() * data.expProgress());
+                player.addExperience(exp);
+            }
+
+            // 移除该玩家的墓碑数据
+            it.remove();
+            storage.markDirty();
+
+            // 如果这个位置已经没有任何墓碑数据 → 移除方块
+            if (dataList.isEmpty()) {
+                world.removeBlock(pos, false);
+            }
+
+            player.sendMessage(Text.literal("你的物品和经验值已经从墓碑中恢复！"), false);
+
+            return true;
+        }
+
+        return false;
     }
 
     private static void placeEndPlatformIfPossible(ServerWorld world, BlockPos basePos) {
