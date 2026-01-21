@@ -12,7 +12,7 @@ import net.minecraft.util.math.BlockPos;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+// import java.util.UUID;
 
 import static com.simpletombstone.SimpleTombstone.triggerReturn;
 import static net.minecraft.server.command.CommandManager.argument;
@@ -37,17 +37,17 @@ public final class TombstoneCommand {
                                         ))
                                 )
                         )
-                        .then(literal("clear")
-                                .then(argument("player", StringArgumentType.word())
-                                        .suggests((ctx, builder) -> CommandSource.suggestMatching(
-                                                ctx.getSource().getServer().getPlayerNames(), builder
-                                        ))
-                                        .executes(ctx -> clear(
-                                                ctx.getSource(),
-                                                StringArgumentType.getString(ctx, "player")
-                                        ))
-                                )
-                        )
+//                        .then(literal("clear")
+//                                .then(argument("player", StringArgumentType.word())
+//                                        .suggests((ctx, builder) -> CommandSource.suggestMatching(
+//                                                ctx.getSource().getServer().getPlayerNames(), builder
+//                                        ))
+//                                        .executes(ctx -> clear(
+//                                                ctx.getSource(),
+//                                                StringArgumentType.getString(ctx, "player")
+//                                        ))
+//                                )
+//                        )
                         .then(literal("config").executes(ctx -> config(ctx.getSource())))
                         .then(literal("trigger")
                                 .then(argument("player", StringArgumentType.word())
@@ -120,29 +120,42 @@ public final class TombstoneCommand {
         return count;
     }
 
-    private static int clear(ServerCommandSource source, String playerName) {
-        ServerPlayerEntity player = source.getServer().getPlayerManager().getPlayer(playerName);
-
-        if (player == null) {
-            source.sendError(Text.literal("§c玩家不存在或不在线"));
-            return 0;
-        }
-
-        UUID uuid = player.getUuid();
-        TombstoneStorage storage = TombstoneStorage.get(source.getWorld());
-
-        int removed = 0;
-        for (BlockPos pos : storage.getTombstoneData().keySet()) {
-            storage.removeTombstone(pos, uuid);
-            removed++;
-        }
-
-        source.sendFeedback(() ->
-                        Text.literal("§a[Tombstone] 已清除 " + playerName + " 的墓碑数据"),
-                true
-        );
-        return removed;
-    }
+//    private static int clear(ServerCommandSource source, String playerName) {
+//        ServerPlayerEntity player = source.getServer().getPlayerManager().getPlayer(playerName);
+//
+//        if (player == null) {
+//            source.sendError(Text.literal("§c玩家不存在或不在线"));
+//            return 0;
+//        }
+//
+//        UUID uuid = player.getUuid();
+//        TombstoneStorage storage = TombstoneStorage.get(source.getWorld());
+//
+//        int removed = 0;
+//
+//        Map<BlockPos, List<PlayerTombstoneData>> all = storage.getTombstoneData();
+//        for (Map.Entry<BlockPos, List<PlayerTombstoneData>> entry : all.entrySet()) {
+//            BlockPos pos = entry.getKey();
+//            List<PlayerTombstoneData> dataList = entry.getValue();
+//
+//            boolean deleted = dataList.removeIf(data -> data.playerId().equals(uuid));
+//
+//            if (deleted) {
+//                removed++;
+//                // 如果该位置没有剩余玩家数据，可以选择彻底删除位置
+//                if (dataList.isEmpty()) {
+//                    storage.removeTombstone(pos, null); // null 表示移除整个墓碑
+//                }
+//            }
+//        }
+//
+//        int finalRemoved = removed;
+//        source.sendFeedback(() ->
+//                        Text.literal("§a[Tombstone] 已清除 " + playerName + " 的墓碑数据，共删除 " + finalRemoved + " 个墓碑"),
+//                true
+//        );
+//        return removed;
+//    }
 
     private static int config(ServerCommandSource source) {
         TombstoneConfig cfg = TombstoneConfig.get();
