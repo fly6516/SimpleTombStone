@@ -91,10 +91,17 @@ public class SimpleTombstone implements ModInitializer {
                             for (ItemStack stack : data.items()) {
                                 player.getInventory().offerOrDrop(stack);
                             }
+                            
+                            // 归还经验值
+                            if (config.saveExperience) {
+                                player.addExperienceLevels(data.expLevel());
+                                player.addExperience(Math.round(player.getNextLevelExperience() * data.expProgress()));
+                            }
+                            
                             world.removeBlock(pos, false);
                             storage.removeTombstone(pos, player.getUuid());
-                            player.sendMessage(Text.of("你的物品已经从墓碑中恢复！"), false);
-                            LOGGER.info("[SimpleTombstone] 玩家 {} 恢复了物品并删除了墓碑。", player.getName().getString());
+                            player.sendMessage(Text.of("你的物品和经验值已经从墓碑中恢复！"), false);
+                            LOGGER.info("[SimpleTombstone] 玩家 {} 恢复了物品和经验值并删除了墓碑。", player.getName().getString());
                             break;
                         }
                     }
@@ -174,7 +181,24 @@ public class SimpleTombstone implements ModInitializer {
             if (!stack.isEmpty()) items.add(stack);
         }
 
-        PlayerTombstoneData newData = new PlayerTombstoneData(player.getUuid(), items);
+        // get experience
+        int expLevel = 0;
+        float expProgress = 0.0f;
+        if (config.saveExperience) {
+            expLevel = player.experienceLevel;
+            expProgress = player.experienceProgress;
+            
+            // set player experience to 0
+            player.addExperience(-player.totalExperience);
+        }
+
+        // tombstone is empty
+        if (items.isEmpty() && (!config.saveExperience || (expLevel == 0 && expProgress == 0.0f))) {
+            LOGGER.info("[SimpleTombstone] 玩家 {} 没有任何物品或经验，跳过创建墓碑", player.getName().getString());
+            return; // uncreate tombstone
+        }
+
+        PlayerTombstoneData newData = new PlayerTombstoneData(player.getUuid(), items, expLevel, expProgress);
 
         TOMBSTONE_CHESTS.computeIfAbsent(tombstonePos, k -> new ArrayList<>()).add(newData);
 
@@ -218,6 +242,13 @@ public class SimpleTombstone implements ModInitializer {
                         for (ItemStack stack : data.items()) {
                             player.getInventory().offerOrDrop(stack);
                         }
+                        
+                        // return experience
+                        if (config.saveExperience) {
+                            player.addExperienceLevels(data.expLevel());
+                            player.addExperience(Math.round(player.getNextLevelExperience() * data.expProgress()));
+                        }
+                        
                         pos = pos.down();
                         if (world.getBlockState(pos.down()).getBlock() == Blocks.GLASS && pos.down().getY() != world.getBottomY()) {
                             world.removeBlock(pos, false);
@@ -227,7 +258,7 @@ public class SimpleTombstone implements ModInitializer {
                         it.remove();
                         RESURRECTED_PLAYERS.remove(player.getUuid());
                         storage.removeTombstone(pos, player.getUuid());
-                        LOGGER.info("[SimpleTombstone] 移除墓碑 {} 并归还物品。", pos.toShortString());
+                        LOGGER.info("[SimpleTombstone] 移除墓碑 {} 并归还物品和经验值。", pos.toShortString());
                         break;
                     }
                 }
@@ -235,10 +266,12 @@ public class SimpleTombstone implements ModInitializer {
         }
     }
 
-    public record PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
-        public PlayerTombstoneData(UUID playerId, List<ItemStack> items) {
+    public record PlayerTombstoneData(UUID playerId, List<ItemStack> items, int expLevel, float expProgress) {
+        public PlayerTombstoneData(UUID playerId, List<ItemStack> items, int expLevel, float expProgress) {
             this.playerId = playerId;
             this.items = new ArrayList<>(items);
+            this.expLevel = expLevel;
+            this.expProgress = expProgress;
         }
 
         @Override
@@ -249,7 +282,9 @@ public class SimpleTombstone implements ModInitializer {
         public static final Codec<PlayerTombstoneData> CODEC = RecordCodecBuilder.create(instance ->
                 instance.group(
                         Uuids.CODEC.fieldOf("playerId").forGetter(PlayerTombstoneData::playerId),
-                        ItemStack.CODEC.listOf().fieldOf("items").forGetter(PlayerTombstoneData::items)
+                        ItemStack.CODEC.listOf().fieldOf("items").forGetter(PlayerTombstoneData::items),
+                        Codec.INT.fieldOf("expLevel").forGetter(PlayerTombstoneData::expLevel),
+                        Codec.FLOAT.fieldOf("expProgress").forGetter(PlayerTombstoneData::expProgress)
                 ).apply(instance, PlayerTombstoneData::new)
         );
     }

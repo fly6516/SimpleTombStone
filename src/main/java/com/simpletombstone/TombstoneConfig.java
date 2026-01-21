@@ -24,6 +24,9 @@ public class TombstoneConfig {
     // 新增距离检测开关配置项，默认开启
     public boolean checkDistanceEnabled = true;
     
+    // 新增是否保存经验值开关，默认开启
+    public boolean saveExperience = true;
+    
     private static final Path CONFIG_DIR = FabricLoader.getInstance().getConfigDir();
     private static final Path CONFIG_PATH = CONFIG_DIR.resolve("simpletombstone.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();

@@ -95,7 +95,9 @@ public final class TombstoneStorage extends PersistentState {
                 mergedItems.addAll(data.items());
                 list.set(i, new SimpleTombstone.PlayerTombstoneData(
                         existing.playerId(),
-                        mergedItems
+                        mergedItems,
+                        existing.expLevel(),
+                        existing.expProgress()
                 ));
                 merged = true;
                 break;
